@@ -1,0 +1,1165 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trợ Lý Chấm Công HSKT Tự Động — HKI 2026–2027</title>
+    
+    <!-- Google Fonts: Be Vietnam Pro & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- SheetJS (XLSX) đọc & ghi file Excel (.xls, .xlsx) -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Be Vietnam Pro"', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        emerald: {
+                            50: '#ecfdf5',
+                            100: '#d1fae5',
+                            200: '#a7f3d0',
+                            500: '#10b981',
+                            600: '#059669',
+                            700: '#047857',
+                            800: '#065f46',
+                            900: '#064e3b',
+                        },
+                        teal: {
+                            50: '#f0fdfa',
+                            600: '#0d9488',
+                            700: '#0f766e',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        ::-webkit-scrollbar {
+            width: 7px;
+            height: 7px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+            border-radius: 999px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 999px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+
+        body {
+            background-color: #f8fafc;
+            background-image: 
+                radial-gradient(at 0% 0%, rgba(16, 185, 129, 0.08) 0px, transparent 50%),
+                radial-gradient(at 100% 0%, rgba(13, 148, 136, 0.08) 0px, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        @keyframes cellPop {
+            0% { transform: scale(0.8); opacity: 0.3; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Ô số 1 được tự động điền từ Lịch báo giảng */
+        .cell-auto-one {
+            animation: cellPop 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: #ffffff !important;
+            font-weight: 700;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.28);
+        }
+
+        /* Ô số 1 được người dùng click thêm thủ công */
+        .cell-manual-one {
+            background: linear-gradient(135deg, #0d9488 0%, #0f766e 100%);
+            color: #ffffff !important;
+            font-weight: 700;
+        }
+
+        .day-cell {
+            cursor: pointer;
+            transition: background-color 0.12s ease, transform 0.1s ease;
+        }
+        .day-cell:hover {
+            outline: 2px solid #059669;
+            outline-offset: -2px;
+            z-index: 15;
+        }
+
+        /* Cố định 3 cột đầu khi cuộn ngang bảng 31 ngày */
+        .sticky-col-1 {
+            position: sticky;
+            left: 0;
+            z-index: 10;
+        }
+        .sticky-col-2 {
+            position: sticky;
+            left: 44px;
+            z-index: 10;
+        }
+        .sticky-col-3 {
+            position: sticky;
+            left: 234px;
+            z-index: 10;
+        }
+
+        .drop-active {
+            border-color: #059669 !important;
+            background-color: #ecfdf5 !important;
+            transform: scale(1.005);
+        }
+    </style>
+</head>
+<body class="text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- ==================== HEADER ==================== -->
+    <header class="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-200/80 shadow-sm">
+        <div class="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-3">
+            <!-- Logo & Tiêu đề -->
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-600 to-teal-600 flex items-center justify-center text-white shadow-md shrink-0">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-slate-900">
+                            Trợ Lý Chấm Công HSKT Tự Động
+                        </h1>
+                        <span class="hidden sm:inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                            HKI 2026–2027
+                        </span>
+                    </div>
+                    <p class="text-xs text-slate-500 hidden sm:block">Đối soát Lịch Báo Giảng & Tự động điền số 1 vào Bảng Chấm Công</p>
+                </div>
+            </div>
+
+            <!-- Các nút chức năng chính -->
+            <div class="flex items-center gap-2 sm:gap-3">
+                <button id="btnDemo" type="button" class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs sm:text-sm font-semibold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-all active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.348a1.125 1.125 0 010 1.971l-11.54 6.347a1.125 1.125 0 01-1.667-.985V5.653z" />
+                    </svg>
+                    <span>Chạy Dữ Liệu Mẫu Demo</span>
+                </button>
+
+                <button id="btnDownload" type="button" disabled class="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 disabled:opacity-40 disabled:cursor-not-allowed shadow-sm hover:shadow-md transition-all active:scale-95">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                    </svg>
+                    <span>Tải xuống Excel (.xlsx)</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ==================== MAIN CONTENT ==================== -->
+    <main class="flex-1 max-w-[1440px] w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-5">
+
+        <!-- KHU VỰC 1: 2 THẺ UPLOAD FILE (MẪU CHẤM CÔNG & LỊCH BÁO GIẢNG) -->
+        <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            
+            <!-- Thẻ 1: File Mẫu Chấm Công -->
+            <div id="zoneChamCong" class="bg-white rounded-2xl p-5 border-2 border-dashed border-slate-300 hover:border-emerald-500 transition-all cursor-pointer shadow-sm flex flex-col justify-between">
+                <input type="file" id="fileChamCong" accept=".xlsx,.xls" class="hidden">
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25" />
+                        </svg>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-[11px] font-extrabold uppercase tracking-wider text-slate-500">1. File Mẫu Chấm Công</span>
+                            <span id="statusChamCong" class="text-[11px] font-semibold text-slate-400">Chưa chọn file</span>
+                        </div>
+                        <h2 id="titleChamCong" class="text-sm font-bold text-slate-800 mt-0.5 truncate">
+                            Kéo thả hoặc bấm chọn file Chấm công HSKT HKI 26-27.xlsx
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-1">Tự động nhận diện các sheet lớp (Lớp 7Y2, 8Y1, 8Y4, 9Y1, 9Y3...)</p>
+                    </div>
+                </div>
+                <div id="sheetsTagList" class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap gap-1.5 min-h-[26px]">
+                    <span class="text-[11px] text-slate-400 italic">Cấu trúc 4 tháng HKI (Tháng 9 – Tháng 12)</span>
+                </div>
+            </div>
+
+            <!-- Thẻ 2: Các File Lịch Báo Giảng -->
+            <div id="zoneLich" class="bg-white rounded-2xl p-5 border-2 border-dashed border-slate-300 hover:border-emerald-500 transition-all cursor-pointer shadow-sm flex flex-col justify-between">
+                <input type="file" id="fileLich" accept=".xls,.xlsx" multiple class="hidden">
+                <div class="flex items-start gap-4">
+                    <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+                        </svg>
+                    </div>
+                    <div class="min-w-0 flex-1">
+                        <div class="flex items-center justify-between gap-2">
+                            <span class="text-[11px] font-extrabold uppercase tracking-wider text-emerald-700">2. Các File Lịch Báo Giảng (.xls / .xlsx)</span>
+                            <span id="statusLich" class="text-[11px] font-semibold text-slate-400">0 file</span>
+                        </div>
+                        <h2 class="text-sm font-bold text-slate-800 mt-0.5">
+                            Kéo thả hoặc chọn nhiều file lịch báo giảng cùng lúc
+                        </h2>
+                        <p class="text-xs text-slate-500 mt-1">Tự động đọc tên giáo viên (ô C2), bỏ qua Coi thi/Nghỉ & điền đúng số 1</p>
+                    </div>
+                </div>
+                <div id="lichFileTags" class="mt-3 pt-2.5 border-t border-slate-100 flex flex-wrap gap-1.5 min-h-[26px]">
+                    <span class="text-[11px] text-slate-400 italic">Hỗ trợ gộp nhiều giáo viên và nhiều tuần (Tuan_1...Tuan_19)</span>
+                </div>
+            </div>
+
+        </section>
+
+        <!-- KHU VỰC 2: THANH ĐIỀU HƯỚNG LỚP / THÁNG & BẢNG LƯỚI CHẤM CÔNG 31 NGÀY -->
+        <section class="bg-white rounded-2xl shadow-sm border border-slate-200/90 overflow-hidden">
+            
+            <!-- Thanh công cụ điều hướng -->
+            <div class="p-4 sm:px-6 border-b border-slate-200 bg-slate-50/70 flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+                
+                <!-- Tabs chọn Lớp -->
+                <div class="flex items-center gap-2 overflow-x-auto pb-1 xl:pb-0">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider shrink-0 mr-1">Lớp:</span>
+                    <div id="classTabsContainer" class="flex items-center gap-1.5">
+                        <span class="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-100 text-slate-400">Chưa có lớp</span>
+                    </div>
+                </div>
+
+                <!-- Chọn Tháng & Thống kê nhanh & Reset -->
+                <div class="flex flex-wrap items-center gap-3">
+                    <!-- Chọn Tháng HKI -->
+                    <div class="flex items-center gap-1 bg-slate-200/70 p-1 rounded-xl">
+                        <button type="button" data-month="9" class="month-btn px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm transition-all">Tháng 9</button>
+                        <button type="button" data-month="10" class="month-btn px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">Tháng 10</button>
+                        <button type="button" data-month="11" class="month-btn px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">Tháng 11</button>
+                        <button type="button" data-month="12" class="month-btn px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all">Tháng 12</button>
+                    </div>
+
+                    <!-- Badge thống kê số ô đã chấm số 1 -->
+                    <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-semibold text-emerald-800">
+                        <span>Đã chấm số 1:</span>
+                        <span id="statTotalOnes" class="font-mono font-extrabold text-sm text-emerald-700">0</span>
+                        <span class="text-emerald-600">ô</span>
+                    </div>
+
+                    <!-- Nút Reset dữ liệu chấm công -->
+                    <button id="btnReset" type="button" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition-all active:scale-95" title="Xóa trắng toàn bộ số 1 đã điền">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                        </svg>
+                        <span>Xóa trắng dữ liệu chấm công (Reset)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Trạng thái trống khi chưa nạp file -->
+            <div id="emptyPanel" class="py-16 px-4 text-center">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center mb-4">
+                    <svg class="w-8 h-8" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 01-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0112 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25" />
+                    </svg>
+                </div>
+                <h3 class="text-base font-bold text-slate-800">Sẵn sàng đối soát & chấm công tự động</h3>
+                <p class="text-xs sm:text-sm text-slate-500 max-w-lg mx-auto mt-1.5">
+                    Hãy tải lên <span class="font-semibold text-slate-700">File Mẫu Chấm Công (.xlsx)</span> và <span class="font-semibold text-emerald-700">Các File Lịch Báo Giảng (.xls)</span> ở trên, hoặc nhấn nút <span class="font-semibold text-emerald-600">"Chạy Dữ Liệu Mẫu Demo"</span> để xem ngay kết quả.
+                </p>
+            </div>
+
+            <!-- Bảng lưới chấm công 31 ngày -->
+            <div id="gridPanel" class="hidden">
+                <!-- Thanh tiêu đề phụ & Chú thích -->
+                <div class="px-6 py-3 bg-emerald-50/50 border-b border-slate-200/80 flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                        <h2 id="gridHeaderTitle" class="text-sm font-extrabold text-slate-800 uppercase">
+                            BẢNG CHẤM CÔNG LỚP 8Y1 — THÁNG 9
+                        </h2>
+                        <p class="text-xs text-slate-500">
+                            Rê chuột vào ô màu xanh để xem chi tiết bài dạy • Click trực tiếp vào ô bất kỳ để bật/tắt số 1 thủ công
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-4 text-xs text-slate-600">
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-3.5 h-3.5 rounded bg-emerald-600 inline-block"></span>
+                            <span>Tự động từ lịch</span>
+                        </div>
+                        <div class="flex items-center gap-1.5">
+                            <span class="w-3.5 h-3.5 rounded bg-teal-700 inline-block"></span>
+                            <span>Chỉnh tay</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Bảng cuộn ngang 31 ngày -->
+                <div class="overflow-x-auto">
+                    <table class="w-full border-collapse text-xs select-none">
+                        <thead id="gridThead" class="bg-slate-100 text-slate-700 font-bold border-b border-slate-300"></thead>
+                        <tbody id="gridTbody" class="divide-y divide-slate-200 bg-white"></tbody>
+                        <tfoot id="gridTfoot" class="bg-slate-50 font-extrabold text-slate-800 border-t-2 border-slate-300"></tfoot>
+                    </table>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- ==================== TOOLTIP CHI TIẾT TIẾT DẠY ==================== -->
+    <div id="cellTooltip" class="fixed z-50 pointer-events-none hidden max-w-xs bg-slate-900/95 text-white text-xs rounded-xl p-3 shadow-xl border border-slate-700 backdrop-blur-md">
+        <div id="tooltipTitle" class="font-bold text-emerald-400 border-b border-slate-700 pb-1 mb-1.5"></div>
+        <div id="tooltipContent" class="space-y-1.5 text-slate-200 leading-relaxed"></div>
+    </div>
+
+    <!-- ==================== TOAST NOTIFICATION ==================== -->
+    <div id="toastArea" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ==================== JAVASCRIPT LOGIC ==================== -->
+    <script>
+        /**
+         * ============================================================================
+         * ENGINE XỬ LÝ EXCEL & CHẤM CÔNG HSKT TỰ ĐỘNG (SINGLE-FILE)
+         * ============================================================================
+         */
+
+        const State = {
+            chamCongWb: null,
+            chamCongFileName: '',
+            originalAoaMap: {},      // Lưu mảng 2 chiều gốc của từng sheet để có thể Reset sạch sẽ
+            workingAoaMap: {},       // Dữ liệu đang làm việc (đã điền số 1)
+            classSheets: [],         // Danh sách tên sheet các lớp ("Lớp 7Y2", "Lớp 8Y1", ...)
+            
+            lichFiles: [],           // [{ name, wb }]
+            autoMetaMap: {},         // Key: `${sheetName}|${month}|${rowIdx}|${day}` -> Array các tiết dạy khớp được
+            manualCellsSet: new Set(), // Key: `${sheetName}|${month}|${rowIdx}|${day}` -> Ô người dùng bật thủ công
+            
+            activeClass: '',
+            activeMonth: 9           // HKI gồm Tháng 9, 10, 11, 12
+        };
+
+        const El = {
+            zoneChamCong: document.getElementById('zoneChamCong'),
+            fileChamCong: document.getElementById('fileChamCong'),
+            statusChamCong: document.getElementById('statusChamCong'),
+            titleChamCong: document.getElementById('titleChamCong'),
+            sheetsTagList: document.getElementById('sheetsTagList'),
+
+            zoneLich: document.getElementById('zoneLich'),
+            fileLich: document.getElementById('fileLich'),
+            statusLich: document.getElementById('statusLich'),
+            lichFileTags: document.getElementById('lichFileTags'),
+
+            btnDemo: document.getElementById('btnDemo'),
+            btnDownload: document.getElementById('btnDownload'),
+            btnReset: document.getElementById('btnReset'),
+
+            classTabsContainer: document.getElementById('classTabsContainer'),
+            monthBtns: document.querySelectorAll('.month-btn'),
+            statTotalOnes: document.getElementById('statTotalOnes'),
+
+            emptyPanel: document.getElementById('emptyPanel'),
+            gridPanel: document.getElementById('gridPanel'),
+            gridHeaderTitle: document.getElementById('gridHeaderTitle'),
+            gridThead: document.getElementById('gridThead'),
+            gridTbody: document.getElementById('gridTbody'),
+            gridTfoot: document.getElementById('gridTfoot'),
+
+            cellTooltip: document.getElementById('cellTooltip'),
+            tooltipTitle: document.getElementById('tooltipTitle'),
+            tooltipContent: document.getElementById('tooltipContent'),
+            toastArea: document.getElementById('toastArea')
+        };
+
+        // ----------------------------------------------------------------------------
+        // 1. TIỆN ÍCH CHUẨN HÓA CHUỖI & NGÀY THÁNG
+        // ----------------------------------------------------------------------------
+
+        function normText(val) {
+            if (val === null || val === undefined) return '';
+            return String(val).normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+        }
+
+        function parseExcelDate(val) {
+            if (val === null || val === undefined || val === '') return null;
+
+            // Excel Serial Date
+            if (typeof val === 'number' && val > 30000 && val < 70000) {
+                const d = XLSX.SSF.parse_date_code(val);
+                if (d && d.y && d.m && d.d) {
+                    return {
+                        year: d.y,
+                        month: d.m,
+                        day: d.d,
+                        text: `${String(d.d).padStart(2, '0')}/${String(d.m).padStart(2, '0')}/${d.y}`
+                    };
+                }
+            }
+
+            // JS Date Object
+            if (val instanceof Date && !isNaN(val)) {
+                const d = val.getDate();
+                const m = val.getMonth() + 1;
+                const y = val.getFullYear();
+                return {
+                    year: y,
+                    month: m,
+                    day: d,
+                    text: `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`
+                };
+            }
+
+            // Chuỗi dd/mm/yyyy hoặc dd-mm-yyyy
+            const str = String(val).trim();
+            const match = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+            if (match) {
+                const day = parseInt(match[1], 10);
+                const month = parseInt(match[2], 10);
+                let year = parseInt(match[3], 10);
+                if (year < 100) year += 2000;
+                if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+                    return {
+                        year,
+                        month,
+                        day,
+                        text: `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
+                    };
+                }
+            }
+            return null;
+        }
+
+        function toast(msg, type = 'success') {
+            const bg = type === 'error' ? 'bg-rose-600' : (type === 'info' ? 'bg-slate-800' : 'bg-emerald-600');
+            const node = document.createElement('div');
+            node.className = `pointer-events-auto px-4 py-2.5 rounded-xl text-white text-xs sm:text-sm font-semibold shadow-lg transition-all duration-300 translate-y-2 opacity-0 ${bg}`;
+            node.textContent = msg;
+            El.toastArea.appendChild(node);
+            requestAnimationFrame(() => node.classList.remove('translate-y-2', 'opacity-0'));
+            setTimeout(() => {
+                node.classList.add('translate-y-2', 'opacity-0');
+                setTimeout(() => node.remove(), 300);
+            }, 3200);
+        }
+
+        // ----------------------------------------------------------------------------
+        // 2. XỬ LÝ UPLOAD & KÉO THẢ FILE
+        // ----------------------------------------------------------------------------
+
+        function bindDropZone(zone, input, callback) {
+            zone.addEventListener('click', () => input.click());
+            zone.addEventListener('dragover', e => {
+                e.preventDefault();
+                zone.classList.add('drop-active');
+            });
+            ['dragleave', 'dragend'].forEach(evt => {
+                zone.addEventListener(evt, () => zone.classList.remove('drop-active'));
+            });
+            zone.addEventListener('drop', e => {
+                e.preventDefault();
+                zone.classList.remove('drop-active');
+                if (e.dataTransfer.files?.length) callback(e.dataTransfer.files);
+            });
+            input.addEventListener('change', e => {
+                if (e.target.files?.length) callback(e.target.files);
+                input.value = '';
+            });
+        }
+
+        async function onUploadChamCong(files) {
+            const file = files[0];
+            if (!file) return;
+            try {
+                const buf = await file.arrayBuffer();
+                const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+                initChamCongWorkbook(wb, file.name);
+                toast(`Đã tải mẫu chấm công: ${file.name}`);
+            } catch (err) {
+                console.error(err);
+                toast('Lỗi đọc file Excel mẫu chấm công!', 'error');
+            }
+        }
+
+        function initChamCongWorkbook(wb, fileName) {
+            State.chamCongWb = wb;
+            State.chamCongFileName = fileName;
+            State.originalAoaMap = {};
+            State.classSheets = [];
+            State.manualCellsSet.clear();
+
+            wb.SheetNames.forEach(name => {
+                const ws = wb.Sheets[name];
+                const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                State.originalAoaMap[name] = aoa;
+
+                const n = normText(name);
+                if (!n.includes('tinh tien') && !n.includes('tính tiền') && !n.includes('tong hop')) {
+                    State.classSheets.push(name);
+                }
+            });
+
+            El.titleChamCong.textContent = fileName;
+            El.titleChamCong.classList.add('text-emerald-700');
+            El.statusChamCong.textContent = 'Đã tải xong';
+            El.statusChamCong.className = 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700';
+
+            El.sheetsTagList.innerHTML = State.classSheets.map(s =>
+                `<span class="px-2 py-0.5 rounded-md text-[11px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">${s}</span>`
+            ).join('');
+
+            if (State.classSheets.length > 0 && !State.classSheets.includes(State.activeClass)) {
+                State.activeClass = State.classSheets[0];
+            }
+
+            renderClassTabs();
+            processAttendanceMatching();
+        }
+
+        async function onUploadLich(files) {
+            let count = 0;
+            for (const f of files) {
+                try {
+                    const buf = await f.arrayBuffer();
+                    const wb = XLSX.read(buf, { type: 'array', cellDates: false });
+                    const idx = State.lichFiles.findIndex(item => item.name === f.name);
+                    if (idx >= 0) State.lichFiles[idx] = { name: f.name, wb };
+                    else State.lichFiles.push({ name: f.name, wb });
+                    count++;
+                } catch (err) {
+                    console.error(err);
+                    toast(`Lỗi đọc file lịch: ${f.name}`, 'error');
+                }
+            }
+            if (count > 0) {
+                renderLichTags();
+                processAttendanceMatching();
+                toast(`Đã nạp ${count} file lịch báo giảng!`);
+            }
+        }
+
+        function renderLichTags() {
+            const total = State.lichFiles.length;
+            El.statusLich.textContent = `${total} file`;
+            El.statusLich.className = total > 0
+                ? 'px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-700'
+                : 'text-[11px] font-semibold text-slate-400';
+
+            if (total === 0) {
+                El.lichFileTags.innerHTML = `<span class="text-[11px] text-slate-400 italic">Hỗ trợ gộp nhiều giáo viên và nhiều tuần (Tuan_1...Tuan_19)</span>`;
+                return;
+            }
+
+            El.lichFileTags.innerHTML = State.lichFiles.map((item, idx) => `
+                <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-md text-[11px] font-semibold bg-emerald-50 text-emerald-800 border border-emerald-200">
+                    <span>📄 ${item.name}</span>
+                    <button type="button" onclick="removeLich(event, ${idx})" class="text-emerald-600 hover:text-rose-600 font-bold ml-0.5" title="Gỡ file">&times;</button>
+                </span>
+            `).join('');
+        }
+
+        window.removeLich = function(e, idx) {
+            e.stopPropagation();
+            State.lichFiles.splice(idx, 1);
+            renderLichTags();
+            processAttendanceMatching();
+        };
+
+        // ----------------------------------------------------------------------------
+        // 3. ENGINE ĐỐI SOÁT & ĐIỀN SỐ 1 TỪ LỊCH BÁO GIẢNG
+        // ----------------------------------------------------------------------------
+
+        function extractLessonsFromSchedules() {
+            const lessons = [];
+
+            State.lichFiles.forEach(fileObj => {
+                const wb = fileObj.wb;
+                wb.SheetNames.forEach(weekName => {
+                    const ws = wb.Sheets[weekName];
+                    const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+                    if (aoa.length < 6) return;
+
+                    // Tên giáo viên tại ô C2 (hàng index 1, cột index 2)
+                    let teacherName = aoa[1]?.[2] ? String(aoa[1][2]).trim() : '';
+                    if (!teacherName && aoa[1]?.[3]) teacherName = String(aoa[1][3]).trim();
+                    teacherName = teacherName.replace(/^(giáo viên|gv|họ và tên)\s*[:\-]\s*/i, '').trim();
+                    if (!teacherName) return;
+
+                    // Duyệt từ dòng index 5 (dòng 6 trên Excel)
+                    for (let r = 5; r < aoa.length; r++) {
+                        const row = aoa[r];
+                        if (!row) continue;
+
+                        const tiet = row[1] !== undefined ? String(row[1]).trim() : '';      // Cột B: Tiết TKB
+                        const lop = row[3] !== undefined ? String(row[3]).trim() : '';       // Cột D: Lớp
+                        // Tên bài dạy có thể nằm ở cột G (index 6) hoặc cột F (index 5) tùy mẫu xuất
+                        const tenBai = String(row[6] || row[5] || '').trim();
+                        const trangThai = row[8] !== undefined ? String(row[8]).trim() : ''; // Cột I: Trạng thái
+
+                        if (!lop) continue;
+
+                        // Bỏ qua các tiết Coi thi hoặc Nghỉ
+                        const stNorm = normText(trangThai);
+                        if (stNorm.includes('coi thi') || stNorm.includes('nghỉ') || stNorm.includes('nghi')) {
+                            continue;
+                        }
+
+                        // Tìm ngày tháng ở Cột A (index 0) trong phạm vi ±3 dòng xung quanh dòng tiết học
+                        let dateObj = null;
+                        for (let offset = 0; offset <= 3; offset++) {
+                            const checkRows = offset === 0 ? [r] : [r + offset, r - offset];
+                            for (const rr of checkRows) {
+                                if (rr >= 5 && rr < aoa.length && aoa[rr]) {
+                                    const parsed = parseExcelDate(aoa[rr][0]);
+                                    if (parsed) {
+                                        dateObj = parsed;
+                                        break;
+                                    }
+                                }
+                            }
+                            if (dateObj) break;
+                        }
+
+                        if (!dateObj || dateObj.month < 9 || dateObj.month > 12) continue;
+
+                        lessons.push({
+                            teacherName,
+                            normTeacher: normText(teacherName),
+                            lop,
+                            normLop: normText(lop),
+                            month: dateObj.month,
+                            day: dateObj.day,
+                            dateText: dateObj.text,
+                            weekName,
+                            tiet,
+                            tenBai,
+                            trangThai: trangThai || 'Bình thường'
+                        });
+                    }
+                });
+            });
+
+            return lessons;
+        }
+
+        function findClassSheet(lopName) {
+            const target = normText(lopName);
+            const targetNoPrefix = target.replace(/^lớp\s+/, '');
+            for (const sName of State.classSheets) {
+                const sNorm = normText(sName);
+                const sNoPrefix = sNorm.replace(/^lớp\s+/, '');
+                if (sNorm === target || sNoPrefix === targetNoPrefix) {
+                    return sName;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Xác định ranh giới dòng của từng cụm tháng (Tháng 9 -> 0, Tháng 10 -> 1, Tháng 11 -> 2, Tháng 12 -> 3)
+         * Mỗi cụm cao 24 dòng
+         */
+        function getMonthBlockBounds(aoa, month) {
+            const blockIdx = month - 9;
+            if (blockIdx < 0 || blockIdx > 3) return null;
+
+            const blockStart = blockIdx * 24;
+            const blockEnd = Math.min(blockStart + 23, aoa.length - 1);
+
+            // Dò dòng tiêu đề "Họ và tên" ở cột B để xác định chính xác dòng bắt đầu danh sách GV
+            let headerRow = -1;
+            for (let r = Math.max(0, blockStart - 2); r <= Math.min(aoa.length - 1, blockStart + 6); r++) {
+                const colB = normText(aoa[r]?.[1]);
+                if (colB === 'họ và tên' || colB === 'họ tên') {
+                    headerRow = r;
+                    break;
+                }
+            }
+
+            const dataStart = headerRow >= 0 ? headerRow + 1 : blockStart + 4;
+            let dataEnd = blockEnd;
+
+            for (let r = dataStart; r <= Math.min(aoa.length - 1, dataStart + 21); r++) {
+                const colA = normText(aoa[r]?.[0]);
+                const colB = normText(aoa[r]?.[1]);
+                if (colA === 'tổng' || colB === 'tổng' || colB === 'tổng cộng') {
+                    dataEnd = r - 1;
+                    break;
+                }
+            }
+
+            return {
+                blockStart,
+                dataStart,
+                dataEnd,
+                totalRow: dataEnd + 1
+            };
+        }
+
+        function processAttendanceMatching() {
+            State.autoMetaMap = {};
+
+            // Khôi phục bản sao sạch từ dữ liệu gốc
+            State.workingAoaMap = {};
+            for (const sName of Object.keys(State.originalAoaMap)) {
+                State.workingAoaMap[sName] = State.originalAoaMap[sName].map(row => [...row]);
+            }
+
+            if (!State.chamCongWb) {
+                renderGrid();
+                El.btnDownload.disabled = true;
+                return;
+            }
+
+            const lessons = extractLessonsFromSchedules();
+
+            // Gom nhóm theo (sheetName, month, rowIdx, day) để đảm bảo 1 ngày chỉ điền duy nhất số 1
+            lessons.forEach(item => {
+                const sheetName = findClassSheet(item.lop);
+                if (!sheetName) return;
+
+                const aoa = State.workingAoaMap[sheetName];
+                const bounds = getMonthBlockBounds(aoa, item.month);
+                if (!bounds) return;
+
+                for (let r = bounds.dataStart; r <= bounds.dataEnd; r++) {
+                    const cellTeacher = normText(aoa[r]?.[1]); // Cột B: Họ và tên giáo viên
+                    if (cellTeacher && cellTeacher === item.normTeacher) {
+                        const colIdx = 2 + item.day; // Cột D (index 3) là Ngày 1 -> index = 2 + day
+                        aoa[r][colIdx] = 1;
+
+                        const metaKey = `${sheetName}|${item.month}|${r}|${item.day}`;
+                        if (!State.autoMetaMap[metaKey]) State.autoMetaMap[metaKey] = [];
+                        State.autoMetaMap[metaKey].push(item);
+                        break;
+                    }
+                }
+            });
+
+            // Áp dụng lại các ô người dùng đã chỉnh tay (nếu có)
+            State.manualCellsSet.forEach(key => {
+                const [sheetName, mStr, rStr, dStr] = key.split('|');
+                const r = parseInt(rStr, 10);
+                const d = parseInt(dStr, 10);
+                if (State.workingAoaMap[sheetName]?.[r]) {
+                    State.workingAoaMap[sheetName][r][2 + d] = 1;
+                }
+            });
+
+            recalculateAllTotals();
+            renderGrid();
+            El.btnDownload.disabled = false;
+        }
+
+        function recalculateAllTotals() {
+            let totalOnesAllSheets = 0;
+
+            for (const sName of State.classSheets) {
+                const aoa = State.workingAoaMap[sName];
+                if (!aoa) continue;
+
+                for (let month = 9; month <= 12; month++) {
+                    const bounds = getMonthBlockBounds(aoa, month);
+                    if (!bounds) continue;
+
+                    const dailySums = new Array(31).fill(0);
+                    let monthSum = 0;
+
+                    for (let r = bounds.dataStart; r <= bounds.dataEnd; r++) {
+                        const row = aoa[r];
+                        if (!row || !String(row[1] || '').trim()) continue;
+
+                        let rowSum = 0;
+                        for (let d = 1; d <= 31; d++) {
+                            const val = Number(row[2 + d]);
+                            if (!isNaN(val) && val > 0) {
+                                rowSum += val;
+                                dailySums[d - 1] += val;
+                                if (val === 1) totalOnesAllSheets++;
+                            }
+                        }
+                        // Cột AI (index 34): Cộng tháng
+                        row[34] = rowSum > 0 ? rowSum : '';
+                        monthSum += rowSum;
+                    }
+
+                    if (bounds.totalRow < aoa.length && aoa[bounds.totalRow]) {
+                        for (let d = 1; d <= 31; d++) {
+                            aoa[bounds.totalRow][2 + d] = dailySums[d - 1] > 0 ? dailySums[d - 1] : '';
+                        }
+                        aoa[bounds.totalRow][34] = monthSum > 0 ? monthSum : 0;
+                    }
+                }
+            }
+
+            El.statTotalOnes.textContent = totalOnesAllSheets;
+        }
+
+        // ----------------------------------------------------------------------------
+        // 4. RENDER TABS LỚP & BẢNG LƯỚI CHẤM CÔNG 31 NGÀY
+        // ----------------------------------------------------------------------------
+
+        function renderClassTabs() {
+            if (State.classSheets.length === 0) {
+                El.classTabsContainer.innerHTML = `<span class="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-100 text-slate-400">Chưa có lớp</span>`;
+                return;
+            }
+
+            El.classTabsContainer.innerHTML = State.classSheets.map(sName => {
+                const isActive = sName === State.activeClass;
+                const cls = isActive
+                    ? 'bg-slate-900 text-white font-bold shadow-sm'
+                    : 'bg-white text-slate-600 hover:bg-slate-100 font-semibold border border-slate-200';
+                return `<button type="button" data-class="${sName}" class="class-tab px-3.5 py-1.5 rounded-xl text-xs transition-all whitespace-nowrap">${sName}</button>`;
+            }).join('');
+
+            // Cập nhật class active
+            El.classTabsContainer.querySelectorAll('.class-tab').forEach(btn => {
+                const isAct = btn.getAttribute('data-class') === State.activeClass;
+                btn.className = `class-tab px-3.5 py-1.5 rounded-xl text-xs transition-all whitespace-nowrap ${
+                    isAct ? 'bg-slate-900 text-white font-bold shadow-sm' : 'bg-white text-slate-600 hover:bg-slate-100 font-semibold border border-slate-200'
+                }`;
+                btn.addEventListener('click', () => {
+                    State.activeClass = btn.getAttribute('data-class');
+                    renderClassTabs();
+                    renderGrid();
+                });
+            });
+        }
+
+        function renderGrid() {
+            if (!State.chamCongWb || !State.activeClass) {
+                El.emptyPanel.classList.remove('hidden');
+                El.gridPanel.classList.add('hidden');
+                return;
+            }
+
+            El.emptyPanel.classList.add('hidden');
+            El.gridPanel.classList.remove('hidden');
+
+            const sheetName = State.activeClass;
+            const month = State.activeMonth;
+            const aoa = State.workingAoaMap[sheetName];
+            const bounds = getMonthBlockBounds(aoa, month);
+
+            El.gridHeaderTitle.textContent = `BẢNG CHẤM CÔNG ${sheetName.toUpperCase()} — THÁNG ${month} (HKI 2026–2027)`;
+
+            // Header 31 ngày
+            let headHtml = `
+                <tr>
+                    <th class="sticky-col-1 bg-slate-100 py-2.5 px-2 text-center border-r border-slate-300 w-[44px] min-w-[44px]">TT</th>
+                    <th class="sticky-col-2 bg-slate-100 py-2.5 px-3 text-left border-r border-slate-300 w-[190px] min-w-[190px]">Họ và tên</th>
+                    <th class="sticky-col-3 bg-slate-100 py-2.5 px-2 text-center border-r border-slate-300 w-[90px] min-w-[90px]">Môn</th>
+            `;
+            for (let d = 1; d <= 31; d++) {
+                const dt = new Date(2026, month - 1, d);
+                const valid = dt.getMonth() === (month - 1);
+                const isSun = valid && dt.getDay() === 0;
+                const bg = !valid ? 'bg-slate-200/70 text-slate-400' : (isSun ? 'bg-amber-50 text-amber-700' : '');
+                headHtml += `<th class="py-2 px-1 text-center border-r border-slate-200 min-w-[32px] ${bg}">${d}</th>`;
+            }
+            headHtml += `<th class="py-2.5 px-2.5 text-center bg-emerald-50 text-emerald-800 border-l border-slate-300 min-w-[70px]">Cộng</th></tr>`;
+            El.gridThead.innerHTML = headHtml;
+
+            // Body danh sách trong sheet chấm công
+            let bodyHtml = '';
+            const dailyTotals = new Array(31).fill(0);
+            let monthGrandTotal = 0;
+
+            if (bounds) {
+                for (let r = bounds.dataStart; r <= bounds.dataEnd; r++) {
+                    const row = aoa[r];
+                    if (!row) continue;
+
+                    const stt = row[0] !== undefined ? row[0] : '';
+                    const name = row[1] !== undefined ? String(row[1]).trim() : '';
+                    const subject = row[2] !== undefined ? String(row[2]).trim() : '';
+
+                    if (!name && !stt) continue;
+
+                    let rowSum = 0;
+                    let daysHtml = '';
+
+                    for (let d = 1; d <= 31; d++) {
+                        const val = row[2 + d];
+                        const num = Number(val);
+                        if (!isNaN(num) && num > 0) {
+                            rowSum += num;
+                            dailyTotals[d - 1] += num;
+                        }
+
+                        const key = `${sheetName}|${month}|${r}|${d}`;
+                        const isAuto = Boolean(State.autoMetaMap[key]) && num === 1;
+                        const isManual = State.manualCellsSet.has(key) && num === 1;
+
+                        const dt = new Date(2026, month - 1, d);
+                        const valid = dt.getMonth() === (month - 1);
+                        const isSun = valid && dt.getDay() === 0;
+                        const baseBg = !valid ? 'bg-slate-100/70' : (isSun ? 'bg-amber-50/40' : '');
+
+                        let cellClass = `day-cell py-2 px-1 text-center border-r border-slate-200 font-mono text-xs ${baseBg}`;
+                        if (isAuto) cellClass += ' cell-auto-one';
+                        else if (isManual) cellClass += ' cell-manual-one';
+
+                        daysHtml += `
+                            <td data-key="${key}" data-row="${r}" data-day="${d}" class="${cellClass}">
+                                ${val !== '' && val !== undefined ? val : ''}
+                            </td>
+                        `;
+                    }
+
+                    monthGrandTotal += rowSum;
+
+                    bodyHtml += `
+                        <tr class="hover:bg-slate-50/90 group">
+                            <td class="sticky-col-1 bg-white group-hover:bg-slate-50 py-2 px-2 text-center border-r border-slate-200 text-slate-500">${stt}</td>
+                            <td class="sticky-col-2 bg-white group-hover:bg-slate-50 py-2 px-3 border-r border-slate-200 font-semibold text-slate-800 whitespace-nowrap">${name}</td>
+                            <td class="sticky-col-3 bg-white group-hover:bg-slate-50 py-2 px-2 text-center border-r border-slate-300 text-slate-500">${subject}</td>
+                            ${daysHtml}
+                            <td class="py-2 px-2.5 text-center font-mono font-bold bg-emerald-50/40 text-emerald-700 border-l border-slate-300">
+                                ${rowSum > 0 ? rowSum : ''}
+                            </td>
+                        </tr>
+                    `;
+                }
+            }
+
+            El.gridTbody.innerHTML = bodyHtml || `<tr><td colspan="35" class="py-8 text-center text-slate-400">Không có dòng dữ liệu nào trong tháng này.</td></tr>`;
+
+            // Footer Tổng cộng
+            let footHtml = `
+                <tr>
+                    <td colspan="3" class="sticky-col-1 bg-slate-100 py-2.5 px-4 text-right border-r border-slate-300 uppercase text-[11px] tracking-wider">
+                        Tổng cộng tháng ${month}:
+                    </td>
+            `;
+            for (let d = 1; d <= 31; d++) {
+                footHtml += `<td class="py-2.5 px-1 text-center border-r border-slate-200 font-mono text-slate-700">${dailyTotals[d - 1] > 0 ? dailyTotals[d - 1] : ''}</td>`;
+            }
+            footHtml += `
+                    <td class="py-2.5 px-2.5 text-center font-mono text-sm font-extrabold bg-emerald-100 text-emerald-800 border-l border-slate-300">
+                        ${monthGrandTotal}
+                    </td>
+                </tr>
+            `;
+            El.gridTfoot.innerHTML = footHtml;
+        }
+
+        // ----------------------------------------------------------------------------
+        // 5. CLICK BẬT/TẮT SỐ 1 THỦ CÔNG & TOOLTIP CHI TIẾT
+        // ----------------------------------------------------------------------------
+
+        El.gridTbody.addEventListener('click', e => {
+            const td = e.target.closest('td.day-cell');
+            if (!td || !State.chamCongWb) return;
+
+            const key = td.getAttribute('data-key');
+            const r = parseInt(td.getAttribute('data-row'), 10);
+            const d = parseInt(td.getAttribute('data-day'), 10);
+            const sheetName = State.activeClass;
+            const aoa = State.workingAoaMap[sheetName];
+            if (!aoa?.[r]) return;
+
+            const currentVal = Number(aoa[r][2 + d]);
+            if (currentVal === 1) {
+                aoa[r][2 + d] = '';
+                State.manualCellsSet.delete(key);
+                delete State.autoMetaMap[key];
+            } else {
+                aoa[r][2 + d] = 1;
+                State.manualCellsSet.add(key);
+            }
+
+            recalculateAllTotals();
+            renderGrid();
+        });
+
+        El.gridTbody.addEventListener('mouseover', e => {
+            const td = e.target.closest('td.day-cell');
+            if (!td) return;
+            const key = td.getAttribute('data-key');
+            const recs = State.autoMetaMap[key];
+            if (!recs || recs.length === 0) return;
+
+            const first = recs[0];
+            El.tooltipTitle.textContent = `${first.teacherName} • ${first.dateText} (${first.lop})`;
+            El.tooltipContent.innerHTML = recs.map(item => `
+                <div class="border-l-2 border-emerald-400 pl-2">
+                    <div class="font-semibold text-white">${item.weekName} — Tiết ${item.tiet || '?'} <span class="text-emerald-300">(${item.trangThai})</span></div>
+                    <div class="text-[11px] text-slate-300">${item.tenBai || 'Bài giảng theo phân phối chương trình'}</div>
+                </div>
+            `).join('') + (recs.length > 1
+                ? `<div class="pt-1 border-t border-slate-700 text-[11px] text-amber-300 italic">Đã gộp ${recs.length} tiết cùng ngày thành đúng số 1</div>`
+                : '');
+
+            El.cellTooltip.classList.remove('hidden');
+        });
+
+        El.gridTbody.addEventListener('mousemove', e => {
+            if (El.cellTooltip.classList.contains('hidden')) return;
+            let left = e.clientX + 14;
+            let top = e.clientY + 14;
+            if (left + 320 > window.innerWidth) left = e.clientX - 334;
+            if (top + 140 > window.innerHeight) top = e.clientY - 154;
+            El.cellTooltip.style.left = `${left}px`;
+            El.cellTooltip.style.top = `${top}px`;
+        });
+
+        El.gridTbody.addEventListener('mouseout', e => {
+            if (e.target.closest('td.day-cell')) {
+                El.cellTooltip.classList.add('hidden');
+            }
+        });
+
+        // ----------------------------------------------------------------------------
+        // 6. XUẤT FILE EXCEL (.XLSX) & RESET DỮ LIỆU
+        // ----------------------------------------------------------------------------
+
+        El.btnDownload.addEventListener('click', () => {
+            if (!State.chamCongWb) return;
+            try {
+                const outWb = XLSX.utils.book_new();
+                State.chamCongWb.SheetNames.forEach(sName => {
+                    const aoa = State.workingAoaMap[sName];
+                    const newWs = XLSX.utils.aoa_to_sheet(aoa);
+                    const origWs = State.chamCongWb.Sheets[sName];
+                    if (origWs['!cols']) newWs['!cols'] = origWs['!cols'];
+                    if (origWs['!merges']) newWs['!merges'] = origWs['!merges'];
+                    XLSX.utils.book_append_sheet(outWb, newWs, sName);
+                });
+
+                const outFileName = State.chamCongFileName.replace(/\.(xlsx|xls)$/i, '') + '_DaChamCong.xlsx';
+                XLSX.writeFile(outWb, outFileName);
+                toast(`Đã tải xuống: ${outFileName}`);
+            } catch (err) {
+                console.error(err);
+                toast('Có lỗi xảy ra khi xuất file Excel!', 'error');
+            }
+        });
+
+        El.btnReset.addEventListener('click', () => {
+            if (!State.chamCongWb) {
+                toast('Chưa có dữ liệu chấm công để làm mới.', 'info');
+                return;
+            }
+            State.lichFiles = [];
+            State.manualCellsSet.clear();
+            State.autoMetaMap = {};
+            renderLichTags();
+            processAttendanceMatching();
+            toast('Đã xóa trắng dữ liệu chấm công về trạng thái ban đầu!', 'info');
+        });
+
+        // ----------------------------------------------------------------------------
+        // 7. DỮ LIỆU MẪU DEMO TÍCH HỢP SẴN
+        // ----------------------------------------------------------------------------
+
+        El.btnDemo.addEventListener('click', () => {
+            // Tạo file mẫu chấm công HSKT HKI 26-27
+            const wbCC = XLSX.utils.book_new();
+            const classes = ['Lớp 8Y1', 'Lớp 9Y1', 'Lớp 9Y3'];
+            const teachers = [
+                { stt: 1, name: 'Nguyễn Văn An', mon: 'Toán' },
+                { stt: 2, name: 'Trần Hữu Cương', mon: 'KHTN' },
+                { stt: 3, name: 'Lê Thị Minh Tâm', mon: 'Ngữ văn' }
+            ];
+
+            classes.forEach(cls => {
+                const aoa = [];
+                for (let m = 9; m <= 12; m++) {
+                    aoa.push([`BẢNG CHẤM CÔNG HSKT ${cls.toUpperCase()} - THÁNG ${m}/2026`]);
+                    aoa.push(['Học kỳ I - Năm học 2026 - 2027']);
+                    aoa.push([]);
+                    const header = ['TT', 'Họ và tên', 'Môn'];
+                    for (let d = 1; d <= 31; d++) header.push(d);
+                    header.push('Cộng tháng');
+                    aoa.push(header);
+
+                    teachers.forEach(gv => {
+                        const row = [gv.stt, gv.name, gv.mon];
+                        for (let d = 1; d <= 32; d++) row.push('');
+                        aoa.push(row);
+                    });
+
+                    const totalRow = ['', 'Tổng'];
+                    for (let d = 1; d <= 32; d++) totalRow.push('');
+                    aoa.push(totalRow);
+
+                    while (aoa.length % 24 !== 0) aoa.push([]);
+                }
+                XLSX.utils.book_append_sheet(wbCC, XLSX.utils.aoa_to_sheet(aoa), cls);
+            });
+
+            // Tạo file lịch báo giảng của thầy Trần Hữu Cương
+            const wbLich = XLSX.utils.book_new();
+            const tuan1 = [
+                ['LỊCH BÁO GIẢNG BUỔI CHIỀU - TUẦN 1'],
+                ['Giáo viên:', '', 'Trần Hữu Cương'],
+                [],
+                [],
+                ['Thứ / Ngày', 'Tiết', 'Môn', 'Lớp', 'PPCT', 'Đồ dùng', 'Tên bài dạy', 'Điều chỉnh', 'Trạng thái'],
+                ['Thứ 2', 1, 'KHTN', '8Y1', 1, '', 'Bài 1: Sử dụng một số hóa chất, thiết bị cơ bản', '', 'Bình thường'],
+                ['', 2, 'KHTN', '8Y1', 2, '', 'Bài 1: Sử dụng một số hóa chất (tiếp theo)', '', 'Bình thường'],
+                ['', 3, '', '', '', '', '', '', ''],
+                ['07/09/2026', 4, 'KHTN', '9Y1', 1, '', 'Bài 1: Nhận biết một số dụng cụ hóa chất', '', 'Bình thường'],
+                ['', 5, '', '', '', '', '', '', ''],
+                ['Thứ 4', 1, 'KHTN', '9Y3', 1, '', 'Bài 1: Nhận biết dụng cụ thí nghiệm', '', 'Bình thường'],
+                ['', 2, '', '', '', '', '', '', ''],
+                ['', 3, 'KHTN', '8Y1', 3, '', 'Bài 2: Phản ứng hóa học', '', 'Dạy bù'],
+                ['09/09/2026', 4, '', '', '', '', '', '', ''],
+                ['', 5, 'KHTN', '9Y1', 2, '', 'Coi kiểm tra đầu năm', '', 'Coi thi']
+            ];
+            XLSX.utils.book_append_sheet(wbLich, XLSX.utils.aoa_to_sheet(tuan1), 'Tuan_1');
+
+            const tuan11 = [
+                ['LỊCH BÁO GIẢNG BUỔI CHIỀU - TUẦN 11'],
+                ['Giáo viên:', '', 'Trần Hữu Cương'],
+                [],
+                [],
+                ['Thứ / Ngày', 'Tiết', 'Môn', 'Lớp', 'PPCT', 'Đồ dùng', 'Tên bài dạy', 'Điều chỉnh', 'Trạng thái'],
+                ['Thứ 2', 1, 'KHTN', '9Y1', 21, '', 'Bài 12: Muối và phân bón hóa học', '', 'Bình thường'],
+                ['', 2, 'KHTN', '9Y3', 21, '', 'Bài 12: Muối và phân bón hóa học', '', 'Bình thường'],
+                ['', 3, '', '', '', '', '', '', ''],
+                ['16/11/2026', 4, '', '', '', '', '', '', ''],
+                ['', 5, 'KHTN', '9Y1', 22, '', 'Coi thi giữa kỳ I', '', 'Coi thi']
+            ];
+            XLSX.utils.book_append_sheet(wbLich, XLSX.utils.aoa_to_sheet(tuan11), 'Tuan_11');
+
+            State.lichFiles = [{ name: 'lich_bg_chieu_Demo.xls', wb: wbLich }];
+            renderLichTags();
+            initChamCongWorkbook(wbCC, 'Cham_cong_HSKT_HKI_26-27_Demo.xlsx');
+            toast('Đã nạp dữ liệu mẫu demo! Bạn có thể chuyển đổi các Lớp và Tháng để kiểm tra.');
+        });
+
+        // ----------------------------------------------------------------------------
+        // 8. KHỞI TẠO SỰ KIỆN CHỌN THÁNG & DROPZONES
+        // ----------------------------------------------------------------------------
+
+        bindDropZone(El.zoneChamCong, El.fileChamCong, onUploadChamCong);
+        bindDropZone(El.zoneLich, El.fileLich, onUploadLich);
+
+        El.monthBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                El.monthBtns.forEach(b => {
+                    b.className = 'month-btn px-3 py-1 rounded-lg text-xs font-semibold text-slate-600 hover:text-slate-900 transition-all';
+                });
+                btn.className = 'month-btn px-3 py-1 rounded-lg text-xs font-bold bg-emerald-600 text-white shadow-sm transition-all';
+                State.activeMonth = parseInt(btn.getAttribute('data-month'), 10);
+                renderGrid();
+            });
+        });
+    </script>
+</body>
+</html>
